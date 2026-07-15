@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>订单追踪系统</title>
+<style>
+:root {
+  --primary: #1a1a2e; --primary-light: #16213e;
+  --accent: #e94560; --accent-hover: #c73b54;
+  --gold: #d4a853; --gold-light: #f5e6c8;
+  --bg: #f7f7f8; --card-bg: #ffffff;
+  --text: #1a1a2e; --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --success: #10b981; --warning: #f59e0b;
+  --danger: #ef4444; --info: #3b82f6;
+  --shadow: 0 1px 3px rgba(0,0,0,.08);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,.1);
+  --radius: 10px; --radius-sm: 6px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif; background:var(--bg); color:var(--text); display:flex; min-height:100vh; }
+
+.sidebar { width:220px; background:var(--primary); color:white; padding:24px 0; display:flex; flex-direction:column; position:fixed; top:0; left:0; bottom:0; z-index:100; }
+.sidebar-logo { padding:0 20px 24px; border-bottom:1px solid rgba(255,255,255,.1); margin-bottom:16px; }
+.sidebar-logo h1 { font-size:16px; font-weight:700; }
+.sidebar-logo span { font-size:11px; color:var(--gold); display:block; margin-top:2px; }
+.sidebar-nav { flex:1; padding:0 12px; }
+.nav-item { display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:var(--radius-sm); cursor:pointer; color:rgba(255,255,255,.65); font-size:14px; margin-bottom:2px; transition:all .15s; border:none; background:none; width:100%; text-align:left; }
+.nav-item:hover { background:rgba(255,255,255,.08); color:white; }
+.nav-item.active { background:var(--accent); color:white; }
+.nav-item .icon { width:20px; text-align:center; font-size:16px; }
+.nav-badge { margin-left:auto; background:var(--accent); color:white; font-size:10px; padding:2px 7px; border-radius:10px; font-weight:600; }
+
+.main { margin-left:220px; flex:1; padding:32px; }
+.page-header { margin-bottom:28px; }
+.page-header h2 { font-size:24px; font-weight:700; }
+.page-header p { color:var(--text-secondary); font-size:14px; margin-top:4px; }
+
+.kanban-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:32px; }
+.kanban-card { background:var(--card-bg); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); cursor:pointer; transition:all .2s; border-left:4px solid transparent; }
+.kanban-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.kanban-card.pending { border-left-color:var(--warning); }
+.kanban-card.production { border-left-color:var(--info); }
+.kanban-card.shipped { border-left-color:var(--success); }
+.kanban-card.completed { border-left-color:var(--text-secondary); }
+.kanban-card.urgent { border-left-color:var(--danger); }
+.kanban-card .card-icon { font-size:28px; margin-bottom:8px; }
+.kanban-card .card-count { font-size:36px; font-weight:800; }
+.kanban-card .card-label { color:var(--text-secondary); font-size:13px; margin-top:4px; }
+.kanban-card.urgent { animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.3)} 50%{box-shadow:0 0 0 8px rgba(239,68,68,0)} }
+
+.table-container { background:var(--card-bg); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.table-header { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
+.table-header h3 { font-size:15px; font-weight:600; }
+.table-tabs { display:flex; gap:4px; padding:8px 16px; border-bottom:1px solid var(--border); background:#fafafa; overflow-x:auto; }
+.table-tab { padding:6px 14px; border-radius:var(--radius-sm); cursor:pointer; font-size:13px; color:var(--text-secondary); transition:all .15s; border:none; background:none; white-space:nowrap; }
+.table-tab:hover { background:#e5e7eb; color:var(--text); }
+.table-tab.active { background:var(--primary); color:white; }
+
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th { background:#f8f9fa; padding:10px 12px; text-align:left; font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.5px; border-bottom:2px solid var(--border); white-space:nowrap; }
+tbody td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+tbody tr:hover { background:#f8f9fa; }
+
+.badge { display:inline-block; padding:3px 10px; border-radius:12px; font-size:11px; font-weight:600; }
+.badge-pending { background:#fef3c7; color:#92400e; }
+.badge-production { background:#dbeafe; color:#1e40af; }
+.badge-shipped { background:#d1fae5; color:#065f46; }
+.badge-completed { background:#e5e7eb; color:#374151; }
+.badge-urgent { background:#fee2e2; color:#991b1b; }
+.badge-paid { background:#d1fae5; color:#065f46; }
+.badge-deposit { background:#fef3c7; color:#92400e; }
+.badge-unpaid { background:#fee2e2; color:#991b1b; }
+
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .15s; }
+.btn-primary { background:var(--accent); color:white; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
+.btn-outline:hover { background:#f3f4f6; }
+.btn-sm { padding:5px 10px; font-size:12px; }
+.btn-danger { background:var(--danger); color:white; }
+.btn-danger:hover { background:#dc2626; }
+.btn-success { background:var(--success); color:white; }
+.btn-success:hover { background:#059669; }
+.btn-info { background:var(--info); color:white; }
+.btn-info:hover { background:#2563eb; }
+
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; justify-content:center; align-items:flex-start; padding-top:60px; }
+.modal-overlay.show { display:flex; }
+.modal { background:var(--card-bg); border-radius:var(--radius); width:90%; max-width:680px; max-height:85vh; overflow-y:auto; box-shadow:var(--shadow-lg); }
+.modal-header { display:flex; justify-content:space-between; align-items:center; padding:18px 24px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--card-bg); z-index:1; }
+.modal-header h3 { font-size:17px; font-weight:700; }
+.modal-close { width:32px; height:32px; border-radius:50%; border:none; background:#f3f4f6; cursor:pointer; font-size:18px; display:flex; align-items:center; justify-content:center; }
+.modal-body { padding:24px; }
+.modal-footer { display:flex; justify-content:flex-end; gap:10px; padding:16px 24px; border-top:1px solid var(--border); }
+
+.form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-group { display:flex; flex-direction:column; gap:6px; }
+.form-group.full { grid-column:1/-1; }
+.form-group label { font-size:12px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.5px; }
+.form-group input, .form-group select, .form-group textarea { padding:9px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; font-family:inherit; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(233,69,96,.1); }
+.form-group textarea { resize:vertical; min-height:60px; }
+
+.confirm-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:2000; justify-content:center; align-items:center; }
+.confirm-overlay.show { display:flex; }
+.confirm-dialog { background:var(--card-bg); border-radius:var(--radius); padding:28px; max-width:400px; width:90%; text-align:center; box-shadow:var(--shadow-lg); }
+.confirm-dialog .icon-warn { font-size:48px; margin-bottom:12px; }
+.confirm-dialog h3 { font-size:17px; margin-bottom:8px; }
+.confirm-dialog p { color:var(--text-secondary); font-size:13px; margin-bottom:20px; }
+.confirm-dialog .actions { display:flex; gap:10px; justify-content:center; }
+
+.actions-cell { display:flex; gap:4px; align-items:center; white-space:nowrap; }
+.empty-state { text-align:center; padding:60px 20px; color:var(--text-secondary); }
+.empty-state .icon { font-size:48px; margin-bottom:12px; opacity:.5; }
+
+.config-bar { background:#fef3c7; padding:8px 20px; font-size:12px; color:#92400e; display:flex; justify-content:space-between; align-items:center; }
+.config-bar a { color:var(--accent); cursor:pointer; text-decoration:underline; }
+
+@media (max-width:768px) {
+  .sidebar { width:60px; }
+  .sidebar-logo h1, .sidebar-logo span, .nav-item span:not(.icon), .nav-badge { display:none; }
+  .main { margin-left:60px; padding:16px; }
+  .form-grid { grid-template-columns:1fr; }
+  .kanban-grid { grid-template-columns:repeat(2,1fr); }
+}
+
+.thumb { width:40px; height:40px; object-fit:cover; border-radius:4px; background:#f3f4f6; }
+.loading { text-align:center; padding:40px; color:var(--text-secondary); }
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <h1>📦 订单追踪</h1>
+    <span>Order Tracking</span>
+  </div>
+  <nav class="sidebar-nav">
+    <button class="nav-item active" data-page="dashboard"><span class="icon">📊</span> 看板</button>
+    <button class="nav-item" data-page="orders"><span class="icon">📋</span> 订单管理 <span class="nav-badge" id="urgent-badge">0</span></button>
+    <button class="nav-item" data-page="clients"><span class="icon">👥</span> 客户列表</button>
+    <button class="nav-item" data-page="skus"><span class="icon">📦</span> SKU 管理</button>
+  </nav>
+</div>
+
+<main class="main" id="main-content">
+  <div style="text-align:center;padding:80px 20px;color:var(--text-secondary)">
+    <div style="font-size:48px;margin-bottom:16px">⏳</div>
+    <p>加载中...</p>
+  </div>
+</main>
+
+<!-- Order Modal -->
+<div class="modal-overlay" id="order-modal"><div class="modal">
+  <div class="modal-header"><h3 id="order-modal-title">新建订单</h3><button class="modal-close" onclick="closeModal('order-modal')">✕</button></div>
+  <div class="modal-body"><form id="order-form"><div class="form-grid">
+    <div class="form-group"><label>订单编号</label><input type="text" id="o-no" placeholder="自动生成"></div>
+    <div class="form-group"><label>下单日期</label><input type="date" id="o-date"></div>
+    <div class="form-group"><label>订单来源</label><select id="o-source"><option value="">请选择</option><option>网站</option><option>展会</option><option>老客户介绍</option><option>阿里国际站</option><option>社交媒体</option><option>其他</option></select></div>
+    <div class="form-group"><label>样品/大货</label><select id="o-type"><option>大货</option><option>样品</option></select></div>
+    <div class="form-group"><label>客户</label><input type="text" id="o-client" placeholder="客户名称" list="client-list"><datalist id="client-list"></datalist></div>
+    <div class="form-group"><label>SKU</label><input type="text" id="o-sku" placeholder="SKU名称" list="sku-list"><datalist id="sku-list"></datalist></div>
+    <div class="form-group"><label>产品图片URL</label><input type="text" id="o-image" placeholder="https://..."></div>
+    <div class="form-group"><label>尺寸/规格</label><input type="text" id="o-size" placeholder="如：6号/7号"></div>
+    <div class="form-group"><label>数量</label><input type="number" id="o-qty" min="1" value="1"></div>
+    <div class="form-group"><label>交期</label><input type="date" id="o-deadline"></div>
+    <div class="form-group"><label>负责人</label><input type="text" id="o-person"></div>
+    <div class="form-group"><label>付款状态</label><select id="o-payment"><option>待付定金</option><option>已付定金</option><option>已付全款</option><option>未付</option></select></div>
+    <div class="form-group full"><label>内容备注</label><textarea id="o-content-notes" rows="3"></textarea></div>
+    <div class="form-group full"><label>其他备注</label><textarea id="o-notes" rows="2"></textarea></div>
+    <input type="hidden" id="o-id"><input type="hidden" id="o-status"><input type="hidden" id="o-sheetrow">
+  </div></form></div>
+  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('order-modal')">取消</button><button class="btn btn-primary" onclick="saveOrder()">保存</button></div>
+</div></div>
+
+<!-- Client Modal -->
+<div class="modal-overlay" id="client-modal"><div class="modal">
+  <div class="modal-header"><h3 id="client-modal-title">添加客户</h3><button class="modal-close" onclick="closeModal('client-modal')">✕</button></div>
+  <div class="modal-body"><form id="client-form"><div class="form-grid">
+    <div class="form-group full"><label>客户名称</label><input type="text" id="c-name" required></div>
+    <div class="form-group"><label>联系人</label><input type="text" id="c-contact"></div>
+    <div class="form-group"><label>电话</label><input type="text" id="c-phone"></div>
+    <div class="form-group"><label>邮箱</label><input type="email" id="c-email"></div>
+    <div class="form-group"><label>来源</label><select id="c-source"><option value="">请选择</option><option>网站</option><option>展会</option><option>老客户介绍</option><option>阿里国际站</option><option>社交媒体</option><option>其他</option></select></div>
+    <div class="form-group full"><label>备注</label><textarea id="c-notes" rows="3"></textarea></div>
+    <input type="hidden" id="c-id">
+  </div></form></div>
+  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('client-modal')">取消</button><button class="btn btn-primary" onclick="saveClient()">保存</button></div>
+</div></div>
+
+<!-- SKU Modal -->
+<div class="modal-overlay" id="sku-modal"><div class="modal">
+  <div class="modal-header"><h3 id="sku-modal-title">添加 SKU</h3><button class="modal-close" onclick="closeModal('sku-modal')">✕</button></div>
+  <div class="modal-body"><form id="sku-form"><div class="form-grid">
+    <div class="form-group"><label>SKU编号</label><input type="text" id="s-code" required></div>
+    <div class="form-group"><label>产品名称</label><input type="text" id="s-name" required></div>
+    <div class="form-group"><label>规格</label><input type="text" id="s-specs"></div>
+    <div class="form-group"><label>材质</label><input type="text" id="s-material"></div>
+    <div class="form-group"><label>单价 (¥)</label><input type="number" id="s-price" min="0" step="0.01" value="0"></div>
+    <div class="form-group"><label>图片URL</label><input type="text" id="s-image" placeholder="https://..."></div>
+    <input type="hidden" id="s-id">
+  </div></form></div>
+  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('sku-modal')">取消</button><button class="btn btn-primary" onclick="saveSku()">保存</button></div>
+</div></div>
+
+<!-- Confirm Dialog -->
+<div class="confirm-overlay" id="confirm-dialog"><div class="confirm-dialog">
+  <div class="icon-warn">⚠️</div>
+  <h3 id="confirm-title">确认操作</h3>
+  <p id="confirm-msg"></p>
+  <div class="actions"><button class="btn btn-outline" onclick="closeConfirm()">取消</button><button class="btn btn-primary" id="confirm-btn">确认</button></div>
+</div></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG — 修改为你的 Apps Script Web App URL
+// ═══════════════════════════════════════════════════════════
+const API_URL = 'https://script.google.com/macros/s/AKfycbyQNJGu8_VKKy9nIHQtW9PXbwfkbdeXYu4i3QDt_COUa_GhsOOsh6SSBqZvYWlE4_szpA/exec';
+
+// ═══════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════
+const S = { page:'dashboard', tab:'pending_production', orders:[], clients:[], skus:[], dash:{counts:{}}, confirmCb:null };
+
+// ═══════════════════════════════════════════════════════════
+// API Helpers
+// ═══════════════════════════════════════════════════════════
+async function api(action, params = {}, method = 'GET') {
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  if (method === 'GET') {
+    for (const [k,v] of Object.entries(params)) url.searchParams.set(k,v);
+    const r = await fetch(url.toString());
+    return r.json();
+  }
+  const r = await fetch(url.toString(), {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════════════════
+// Load All Data
+// ═══════════════════════════════════════════════════════════
+async function loadAll() {
+  try {
+    const [d,c,s,o1,o2,o3,o4,u] = await Promise.all([
+      api('dashboard'), api('clients'), api('skus'),
+      api('orders', {status:'pending_production'}),
+      api('orders', {status:'in_production'}),
+      api('orders', {status:'shipped'}),
+      api('orders', {status:'completed'}),
+      api('urgent')
+    ]);
+    S.dash = d; S.clients = c; S.skus = s;
+    S.orders = [...o1,...o2,...o3,...o4];
+    S.urgentOrders = u;
+    document.getElementById('urgent-badge').textContent = d.counts?.urgent || 0;
+  } catch(e) {
+    console.error('加载失败:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Navigation
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-item').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    S.page = b.dataset.page;
+    S.tab = 'pending_production';
+    renderPage();
+  });
+});
+
+async function renderPage() {
+  await loadAll();
+  const m = document.getElementById('main-content');
+  switch(S.page) {
+    case 'dashboard': rDashboard(m); break;
+    case 'orders': rOrders(m); break;
+    case 'clients': rClients(m); break;
+    case 'skus': rSkus(m); break;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Dashboard
+// ═══════════════════════════════════════════════════════════
+function rDashboard(m) {
+  const d = S.dash.counts || {};
+  m.innerHTML = `
+    <div class="page-header"><h2>📊 订单看板</h2></div>
+    <div class="kanban-grid">
+      ${card('pending', '📥 未排产', d.pending||0, '📥')}
+      ${card('production', '🏭 已排产', d.production||0, '🏭')}
+      ${card('shipped', '🚚 已发货', d.shipped||0, '🚚')}
+      ${card('completed', '✅ 已完成', d.completed||0, '✅')}
+      ${card('urgent', '⏰ 临期订单', d.urgent||0, '⏰')}
+    </div>
+    <div style="text-align:center;color:var(--text-secondary);font-size:12px;margin-top:40px">
+      <p>数据来源：Google Sheets · 自动同步</p>
+      <button class="btn btn-outline btn-sm" onclick="renderPage()" style="margin-top:8px">🔄 刷新数据</button>
+    </div>`;
+}
+
+function card(cls, label, count, icon) {
+  return `<div class="kanban-card ${cls}" onclick="navOrders('${cls==='pending'?'pending_production':cls==='production'?'in_production':cls==='completed'?'completed':cls==='urgent'?'urgent':'shipped'}')">
+    <div class="card-icon">${icon}</div>
+    <div class="card-count">${count}</div>
+    <div class="card-label">${label}</div>
+  </div>`;
+}
+
+function navOrders(tab) { S.page='orders'; S.tab=tab; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active')); document.querySelector('[data-page="orders"]').classList.add('active'); renderPage(); }
+
+// ═══════════════════════════════════════════════════════════
+// Orders
+// ═══════════════════════════════════════════════════════════
+function rOrders(m) {
+  const tabs = [
+    {k:'pending_production',l:'📥 未排产'},
+    {k:'in_production',l:'🏭 已排产'},
+    {k:'shipped',l:'🚚 已发货'},
+    {k:'completed',l:'✅ 已完成'},
+    {k:'urgent',l:'⏰ 临期订单'}
+  ];
+  m.innerHTML = `
+    <div class="page-header"><h2>📋 订单管理</h2></div>
+    <div class="table-container">
+      <div class="table-header"><h3>订单列表</h3><button class="btn btn-primary" onclick="showOrderForm()">+ 新建订单</button></div>
+      <div class="table-tabs">${tabs.map(t=>`<button class="table-tab ${S.tab===t.k?'active':''}" onclick="switchTab('${t.k}')">${t.l}</button>`).join('')}</div>
+      <div id="order-table-content"></div>
+    </div>`;
+  rOrderTable();
+}
+
+function switchTab(t) { S.tab=t; document.querySelectorAll('.table-tab').forEach(x=>x.classList.remove('active')); event.target.classList.add('active'); rOrderTable(); }
+
+function rOrderTable() {
+  const c = document.getElementById('order-table-content');
+  let orders;
+  if (S.tab==='urgent') { orders = S.urgentOrders || []; }
+  else { orders = S.orders.filter(o=>o.status===S.tab); }
+  
+  if (!orders.length) { c.innerHTML='<div class="empty-state"><div class="icon">📭</div><p>暂无订单</p></div>'; return; }
+  
+  let h = '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>订单编号</th><th>日期</th><th>客户</th><th>SKU</th><th>尺寸</th><th>数量</th><th>交期</th><th>付款</th><th>负责人</th>';
+  if (S.tab==='in_production') h += '<th>质检</th>';
+  if (S.tab==='shipped') h += '<th>物流</th><th>发货方式</th>';
+  if (S.tab==='urgent') h += '<th>剩余天数</th><th>状态</th>';
+  h += '<th>操作</th></tr></thead><tbody>';
+  
+  orders.forEach(o => {
+    const dl = o['交期']||o.deadline||'';
+    const urgent = dl && isUrgent(dl);
+    h += '<tr'+(urgent?' style="background:#fff5f5"':'')+'>';
+    h += `<td><strong>${o['订单编号']||o.order_no||'-'}</strong></td>`;
+    h += `<td>${o['下单日期']||o.order_date||'-'}</td>`;
+    h += `<td>${o['客户']||o.client_name||'-'}</td>`;
+    h += `<td>${o['SKU']||o.sku_name||'-'}</td>`;
+    h += `<td>${o['尺寸/规格']||o['尺寸']||o.size||'-'}</td>`;
+    h += `<td>${o['数量']||o.quantity||0}</td>`;
+    h += `<td>${dl}${urgent?' <span class="badge badge-urgent">临期</span>':''}</td>`;
+    h += `<td>${payBadge(o['付款状态']||o.payment_status||'')}</td>`;
+    h += `<td>${o['负责人']||o.person_in_charge||'-'}</td>`;
+    
+    if (S.tab==='in_production') h += `<td>${o['质检']||o.qc_checked ? '✅': '⏳'}</td>`;
+    if (S.tab==='shipped') {
+      h += `<td>${o['物流公司']||o.logistics_company||'-'} ${o['物流单号']||o.tracking_no||''}</td>`;
+      h += `<td>${o['发货方式']||o.shipping_method||'-'}</td>`;
+    }
+    if (S.tab==='urgent') {
+      h += `<td><span class="badge badge-urgent">${o['剩余天数']||o.days_left||'?'} 天</span></td>`;
+      h += `<td>${o['状态']||o.current_status||'-'}</td>`;
+    }
+    
+    h += '<td class="actions-cell">';
+    h += `<button class="btn btn-outline btn-sm" onclick="editOrder('${S.tab}',${o.id||o._sheetRow})">✏️</button>`;
+    
+    if (S.tab==='pending_production') h += `<button class="btn btn-sm" style="background:var(--info);color:white" onclick="doMove('${S.tab}',${o._sheetRow||o.id},'in_production')">🏭 排产</button>`;
+    if (S.tab==='in_production') {
+      h += `<button class="btn btn-outline btn-sm" onclick="toggleQC('${S.tab}',${o._sheetRow||o.id})">${o['质检']||o.qc_checked?'🔲':'✅'}质检</button>`;
+      h += `<button class="btn btn-sm" style="background:var(--success);color:white" onclick="doMoveShip(${o._sheetRow||o.id})">🚚 发货</button>`;
+    }
+    if (S.tab==='shipped') h += `<button class="btn btn-sm" style="background:var(--success);color:white" onclick="doMove('${S.tab}',${o._sheetRow||o.id},'completed')">✅ 完成</button>`;
+    
+    h += `<button class="btn btn-danger btn-sm" onclick="doDelete('${S.tab}',${o._sheetRow||o.id})">🗑️</button>`;
+    h += '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  c.innerHTML = h;
+}
+
+function payBadge(s) {
+  const m = {'已付全款':'badge-paid','已付定金':'badge-deposit','待付定金':'badge-unpaid','未付':'badge-unpaid'};
+  return `<span class="badge ${m[s]||'badge-unpaid'}">${s||'待付定金'}</span>`;
+}
+
+function isUrgent(d) {
+  if (!d) return false;
+  const diff = new Date(d).getTime() - Date.now();
+  return diff > 0 && diff < 7*24*60*60*1000;
+}
+
+// ═══════════════════════════════════════════════════════════
+// Order Actions
+// ═══════════════════════════════════════════════════════════
+function showOrderForm() {
+  ['o-id','o-status','o-sheetrow'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('order-modal-title').textContent='新建订单';
+  document.getElementById('order-form').reset();
+  document.getElementById('o-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('o-type').value = '大货';
+  document.getElementById('o-payment').value = '待付定金';
+  // Populate datalists
+  document.getElementById('client-list').innerHTML = S.clients.map(c=>`<option value="${c['客户名称']||c.name||''}">`).join('');
+  document.getElementById('sku-list').innerHTML = S.skus.map(s=>`<option value="${s['产品名称']||s.name||''}">`).join('');
+  openModal('order-modal');
+}
+
+function editOrder(status, row) {
+  const orders = S.tab==='urgent' ? (S.urgentOrders||[]) : S.orders.filter(o=>o.status===S.tab);
+  const o = orders.find(x=>x._sheetRow===row || x.id===row);
+  if (!o) return;
+  document.getElementById('order-modal-title').textContent='编辑订单';
+  document.getElementById('o-id').value = o.id || '';
+  document.getElementById('o-status').value = status;
+  document.getElementById('o-sheetrow').value = o._sheetRow || '';
+  document.getElementById('o-no').value = o['订单编号']||o.order_no||'';
+  document.getElementById('o-date').value = o['下单日期']||o.order_date||'';
+  document.getElementById('o-source').value = o['订单来源']||o.source||'';
+  document.getElementById('o-type').value = o['样品/大货']||o.order_type||'大货';
+  document.getElementById('o-client').value = o['客户']||o.client_name||'';
+  document.getElementById('o-sku').value = o['SKU']||o.sku_name||'';
+  document.getElementById('o-image').value = o['产品图片(URL)']||o.product_image||'';
+  document.getElementById('o-size').value = o['尺寸/规格']||o['尺寸']||o.size||'';
+  document.getElementById('o-qty').value = o['数量']||o.quantity||0;
+  document.getElementById('o-deadline').value = o['交期']||o.deadline||'';
+  document.getElementById('o-person').value = o['负责人']||o.person_in_charge||'';
+  document.getElementById('o-payment').value = o['付款状态']||o.payment_status||'待付定金';
+  document.getElementById('o-content-notes').value = o['内容备注']||o.content_notes||'';
+  document.getElementById('o-notes').value = o['其他备注']||o.notes||'';
+  openModal('order-modal');
+}
+
+async function saveOrder() {
+  const data = {
+    '订单编号': document.getElementById('o-no').value,
+    '下单日期': document.getElementById('o-date').value,
+    '订单来源': document.getElementById('o-source').value,
+    '样品/大货': document.getElementById('o-type').value,
+    client_name: document.getElementById('o-client').value,
+    sku_name: document.getElementById('o-sku').value,
+    product_image: document.getElementById('o-image').value,
+    '尺寸/规格': document.getElementById('o-size').value,
+    '数量': parseInt(document.getElementById('o-qty').value)||0,
+    '交期': document.getElementById('o-deadline').value,
+    '负责人': document.getElementById('o-person').value,
+    '付款状态': document.getElementById('o-payment').value,
+    content_notes: document.getElementById('o-content-notes').value,
+    notes: document.getElementById('o-notes').value
+  };
+  
+  const id = document.getElementById('o-id').value;
+  if (id) {
+    data.status = document.getElementById('o-status').value;
+    data._sheetRow = parseInt(document.getElementById('o-sheetrow').value);
+    await api('updateOrder', data, 'POST');
+  } else {
+    await api('createOrder', data, 'POST');
+  }
+  closeModal('order-modal');
+  await loadAll();
+  renderPage();
+}
+
+function doMove(status, row, newStatus) {
+  showConfirm('确认操作', '确认转移此订单吗？', async () => {
+    await api('moveOrder', {status, _sheetRow:row, newStatus}, 'POST');
+    await loadAll(); renderPage();
+  });
+}
+
+function doMoveShip(row) {
+  const company = prompt('物流公司：');
+  if (!company) return;
+  const tracking = prompt('快递单号：');
+  if (!tracking) return;
+  const method = prompt('发货方式（空运/海运/快递）：');
+  showConfirm('确认发货', `物流：${company} - ${tracking}`, async () => {
+    await api('moveOrder', {
+      status:'in_production', _sheetRow:row, newStatus:'shipped',
+      logistics_company: company, tracking_no: tracking, shipping_method: method||''
+    }, 'POST');
+    await loadAll(); renderPage();
+  });
+}
+
+async function toggleQC(status, row) {
+  // Simple toggle by updating the sheet directly
+  await api('updateOrder', {status, _sheetRow:row, qc_checked: 1}, 'POST');
+  await loadAll(); renderPage();
+}
+
+function doDelete(status, row) {
+  showConfirm('确认删除', '此操作不可撤销', async () => {
+    await api('deleteOrder', {status, _sheetRow:row}, 'POST');
+    await loadAll(); renderPage();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Clients
+// ═══════════════════════════════════════════════════════════
+function rClients(m) {
+  m.innerHTML = `<div class="page-header"><h2>👥 客户列表</h2></div>
+    <div class="table-container"><div class="table-header"><h3>客户 (${S.clients.length})</h3><button class="btn btn-primary" onclick="showClientForm()">+ 添加</button></div></div>
+    <div style="margin-top:16px;background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto">
+      ${S.clients.length?`<table style="width:100%"><thead><tr><th>客户名称</th><th>联系人</th><th>电话</th><th>邮箱</th><th>来源</th><th>备注</th><th>操作</th></tr></thead><tbody>
+        ${S.clients.map(c=>`<tr><td><strong>${c['客户名称']||c.name||''}</strong></td><td>${c['联系人']||c.contact||'-'}</td><td>${c['电话']||c.phone||'-'}</td><td>${c['邮箱']||c.email||'-'}</td><td>${c['来源']||c.source||'-'}</td><td>${c['备注']||c.notes||'-'}</td>
+          <td class="actions-cell"><button class="btn btn-outline btn-sm" onclick="editClient(${c.id})">✏️</button><button class="btn btn-danger btn-sm" onclick="doDeleteClient(${c.id})">🗑️</button></td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty-state"><div class="icon">👤</div><p>暂无客户</p></div>'}
+    </div>`;
+}
+
+function showClientForm(id) {
+  document.getElementById('c-id').value = '';
+  document.getElementById('client-modal-title').textContent = '添加客户';
+  document.getElementById('client-form').reset();
+  if (id) {
+    const c = S.clients.find(x=>x.id===id);
+    if (c) {
+      document.getElementById('c-id').value = c.id;
+      document.getElementById('c-name').value = c['客户名称']||c.name||'';
+      document.getElementById('c-contact').value = c['联系人']||c.contact||'';
+      document.getElementById('c-phone').value = c['电话']||c.phone||'';
+      document.getElementById('c-email').value = c['邮箱']||c.email||'';
+      document.getElementById('c-source').value = c['来源']||c.source||'';
+      document.getElementById('c-notes').value = c['备注']||c.notes||'';
+      document.getElementById('client-modal-title').textContent = '编辑客户';
+    }
+  }
+  openModal('client-modal');
+}
+
+async function saveClient() {
+  const id = document.getElementById('c-id').value;
+  const data = {
+    id: id ? parseInt(id) : undefined,
+    name: document.getElementById('c-name').value,
+    contact: document.getElementById('c-contact').value,
+    phone: document.getElementById('c-phone').value,
+    email: document.getElementById('c-email').value,
+    source: document.getElementById('c-source').value,
+    notes: document.getElementById('c-notes').value
+  };
+  await api(id?'updateClient':'createClient', data, 'POST');
+  closeModal('client-modal');
+  await loadAll(); renderPage();
+}
+
+function editClient(id) { showClientForm(id); }
+
+function doDeleteClient(id) {
+  showConfirm('确认删除', '删除此客户？', async () => {
+    await api('deleteClient', {id}, 'POST');
+    await loadAll(); renderPage();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// SKUs
+// ═══════════════════════════════════════════════════════════
+function rSkus(m) {
+  m.innerHTML = `<div class="page-header"><h2>📦 SKU 管理</h2></div>
+    <div class="table-container"><div class="table-header"><h3>SKU (${S.skus.length})</h3><button class="btn btn-primary" onclick="showSkuForm()">+ 添加</button></div></div>
+    <div style="margin-top:16px;background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow);overflow:auto">
+      ${S.skus.length?`<table style="width:100%"><thead><tr><th>SKU编号</th><th>产品名称</th><th>规格</th><th>材质</th><th>单价</th><th>操作</th></tr></thead><tbody>
+        ${S.skus.map(s=>`<tr><td><span class="badge badge-production">${s['SKU编号']||s.sku_code||''}</span></td><td><strong>${s['产品名称']||s.name||''}</strong></td><td>${s['规格']||s.specs||'-'}</td><td>${s['材质']||s.material||'-'}</td><td>¥${(s['单价(¥)']||s.unit_price||0).toFixed?.(2)||'0.00'}</td>
+          <td class="actions-cell"><button class="btn btn-outline btn-sm" onclick="editSku(${s.id})">✏️</button><button class="btn btn-danger btn-sm" onclick="doDeleteSku(${s.id})">🗑️</button></td></tr>`).join('')}
+      </tbody></table>`:'<div class="empty-state"><div class="icon">📦</div><p>暂无 SKU</p></div>'}
+    </div>`;
+}
+
+function showSkuForm(id) {
+  document.getElementById('s-id').value = '';
+  document.getElementById('sku-modal-title').textContent = '添加 SKU';
+  document.getElementById('sku-form').reset();
+  if (id) {
+    const s = S.skus.find(x=>x.id===id);
+    if (s) {
+      document.getElementById('s-id').value = s.id;
+      document.getElementById('s-code').value = s['SKU编号']||s.sku_code||'';
+      document.getElementById('s-name').value = s['产品名称']||s.name||'';
+      document.getElementById('s-specs').value = s['规格']||s.specs||'';
+      document.getElementById('s-material').value = s['材质']||s.material||'';
+      document.getElementById('s-price').value = s['单价(¥)']||s.unit_price||0;
+      document.getElementById('s-image').value = s['产品图片(URL)']||s.image||'';
+      document.getElementById('sku-modal-title').textContent = '编辑 SKU';
+    }
+  }
+  openModal('sku-modal');
+}
+
+async function saveSku() {
+  const id = document.getElementById('s-id').value;
+  const data = {
+    id: id ? parseInt(id) : undefined,
+    sku_code: document.getElementById('s-code').value,
+    name: document.getElementById('s-name').value,
+    specs: document.getElementById('s-specs').value,
+    material: document.getElementById('s-material').value,
+    unit_price: parseFloat(document.getElementById('s-price').value)||0,
+    image: document.getElementById('s-image').value
+  };
+  await api(id?'updateSku':'createSku', data, 'POST');
+  closeModal('sku-modal');
+  await loadAll(); renderPage();
+}
+
+function editSku(id) { showSkuForm(id); }
+
+function doDeleteSku(id) {
+  showConfirm('确认删除', '删除此 SKU？', async () => {
+    await api('deleteSku', {id}, 'POST');
+    await loadAll(); renderPage();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Modals & Confirm
+// ═══════════════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function showConfirm(title, msg, cb) {
+  document.getElementById('confirm-title').textContent = title;
+  document.getElementById('confirm-msg').textContent = msg;
+  S.confirmCb = cb;
+  document.getElementById('confirm-btn').onclick = ()=>{ if(S.confirmCb)S.confirmCb(); closeConfirm(); };
+  document.getElementById('confirm-dialog').classList.add('show');
+}
+function closeConfirm() { document.getElementById('confirm-dialog').classList.remove('show'); S.confirmCb = null; }
+
+// ═══════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════
+if (API_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+  document.getElementById('main-content').innerHTML = `
+    <div style="max-width:600px;margin:80px auto;background:var(--card-bg);padding:40px;border-radius:var(--radius);box-shadow:var(--shadow);text-align:center">
+      <div style="font-size:48px;margin-bottom:16px">⚙️</div>
+      <h2>尚未配置 API 地址</h2>
+      <p style="color:var(--text-secondary);margin:12px 0 24px">
+        请按以下步骤完成配置：<br><br>
+        1. 打开 Google Sheets，进入「扩展程序 → Apps Script」<br>
+        2. 粘贴 <code>AppsScript_API.js</code> 全部代码，保存<br>
+        3. 点击「部署 → 新部署 → Web 应用」，获取 URL<br>
+        4. 编辑本文件，将 <code>API_URL</code> 替换为你的 URL<br>
+        5. 重新部署到 GitHub Pages
+      </p>
+      <p style="font-size:12px;color:var(--text-secondary)">详细说明见项目中的 README.md</p>
+    </div>`;
+} else {
+  document.addEventListener('DOMContentLoaded', renderPage);
+}
+</script>
+</body>
+</html>
