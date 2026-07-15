@@ -244,9 +244,12 @@ async function api(action, params = {}, method = 'GET') {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Load All Data
+// Load All Data (only on first load and explicit refresh)
 // ═══════════════════════════════════════════════════════════
-async function loadAll() {
+S.loaded = false;
+
+async function loadAll(force = false) {
+  if (S.loaded && !force) return; // 缓存命中，直接跳过
   try {
     const [d,c,s,o1,o2,o3,o4,u] = await Promise.all([
       api('dashboard'), api('clients'), api('skus'),
@@ -259,26 +262,42 @@ async function loadAll() {
     S.dash = d; S.clients = c; S.skus = s;
     S.orders = [...o1,...o2,...o3,...o4];
     S.urgentOrders = u;
+    S.loaded = true;
+    S.lastLoad = Date.now();
     document.getElementById('urgent-badge').textContent = d.counts?.urgent || 0;
   } catch(e) {
     console.error('加载失败:', e);
   }
 }
 
+// 轻量刷新：仅刷新看板计数和临期订单（切换页面时后台运行）
+async function lightRefresh() {
+  try {
+    const d = await api('dashboard');
+    S.dash = d;
+    document.getElementById('urgent-badge').textContent = d.counts?.urgent || 0;
+  } catch(e) {}
+}
+
 // ═══════════════════════════════════════════════════════════
-// Navigation
+// Navigation — 超快切换（使用缓存）
 // ═══════════════════════════════════════════════════════════
 document.querySelectorAll('.nav-item').forEach(b => {
-  b.addEventListener('click', () => {
+  b.addEventListener('click', async () => {
     document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
     S.page = b.dataset.page;
     S.tab = 'pending_production';
     renderPage();
+    lightRefresh(); // 后台静默刷新数据
   });
 });
 
 async function renderPage() {
+  if (!S.loaded) {
+    // 首次加载：显示加载动画
+    document.getElementById('main-content').innerHTML = '<div style="text-align:center;padding:80px 20px;color:var(--text-secondary)"><div style="font-size:48px;margin-bottom:16px">⏳</div><p>加载中...</p></div>';
+  }
   await loadAll();
   const m = document.getElementById('main-content');
   switch(S.page) {
@@ -484,7 +503,8 @@ async function saveOrder() {
 function doMove(status, row, newStatus) {
   showConfirm('确认操作', '确认转移此订单吗？', async () => {
     await api('moveOrder', {status, _sheetRow:row, newStatus}, 'POST');
-    await loadAll(); renderPage();
+    await loadAll(true);
+  renderPage();
   });
 }
 
@@ -499,20 +519,23 @@ function doMoveShip(row) {
       status:'in_production', _sheetRow:row, newStatus:'shipped',
       logistics_company: company, tracking_no: tracking, shipping_method: method||''
     }, 'POST');
-    await loadAll(); renderPage();
+    await loadAll(true);
+  renderPage();
   });
 }
 
 async function toggleQC(status, row) {
   // Simple toggle by updating the sheet directly
   await api('updateOrder', {status, _sheetRow:row, qc_checked: 1}, 'POST');
-  await loadAll(); renderPage();
+  await loadAll(true);
+  renderPage();
 }
 
 function doDelete(status, row) {
   showConfirm('确认删除', '此操作不可撤销', async () => {
     await api('deleteOrder', {status, _sheetRow:row}, 'POST');
-    await loadAll(); renderPage();
+    await loadAll(true);
+  renderPage();
   });
 }
 
@@ -563,7 +586,8 @@ async function saveClient() {
   };
   await api(id?'updateClient':'createClient', data, 'POST');
   closeModal('client-modal');
-  await loadAll(); renderPage();
+  await loadAll(true);
+  renderPage();
 }
 
 function editClient(id) { showClientForm(id); }
@@ -571,7 +595,8 @@ function editClient(id) { showClientForm(id); }
 function doDeleteClient(id) {
   showConfirm('确认删除', '删除此客户？', async () => {
     await api('deleteClient', {id}, 'POST');
-    await loadAll(); renderPage();
+    await loadAll(true);
+  renderPage();
   });
 }
 
@@ -622,7 +647,8 @@ async function saveSku() {
   };
   await api(id?'updateSku':'createSku', data, 'POST');
   closeModal('sku-modal');
-  await loadAll(); renderPage();
+  await loadAll(true);
+  renderPage();
 }
 
 function editSku(id) { showSkuForm(id); }
@@ -630,7 +656,8 @@ function editSku(id) { showSkuForm(id); }
 function doDeleteSku(id) {
   showConfirm('确认删除', '删除此 SKU？', async () => {
     await api('deleteSku', {id}, 'POST');
-    await loadAll(); renderPage();
+    await loadAll(true);
+  renderPage();
   });
 }
 
