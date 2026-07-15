@@ -163,7 +163,7 @@ tbody tr:hover { background:#f8f9fa; }
     <div class="form-group"><label>样品/大货</label><select id="o-type"><option>大货</option><option>样品</option></select></div>
     <div class="form-group"><label>客户</label><input type="text" id="o-client" placeholder="客户名称" list="client-list"><datalist id="client-list"></datalist></div>
     <div class="form-group"><label>SKU</label><input type="text" id="o-sku" placeholder="SKU名称" list="sku-list"><datalist id="sku-list"></datalist></div>
-    <div class="form-group"><label>产品图片URL</label><input type="text" id="o-image" placeholder="https://..."></div>
+    <div class="form-group"><label>产品图片URL</label><input type="text" id="o-image" placeholder="选择SKU自动填入，或手动输入 https://..."><img id="o-image-preview" style="width:60px;height:60px;object-fit:cover;border-radius:4px;margin-top:4px;display:none;border:1px solid var(--border)"></div>
     <div class="form-group"><label>尺寸/规格</label><input type="text" id="o-size" placeholder="如：6号/7号"></div>
     <div class="form-group"><label>数量</label><input type="number" id="o-qty" min="1" value="1"></div>
     <div class="form-group"><label>交期</label><input type="date" id="o-deadline"></div>
@@ -466,6 +466,7 @@ function editOrder(status, row) {
   document.getElementById('o-payment').value = o['付款状态']||o.payment_status||'待付定金';
   document.getElementById('o-content-notes').value = o['内容备注']||o.content_notes||'';
   document.getElementById('o-notes').value = o['其他备注']||o.notes||'';
+  showImgPreview(o['产品图片(URL)']||o.product_image||'');
   openModal('order-modal');
 }
 
@@ -674,6 +675,38 @@ function showConfirm(title, msg, cb) {
   document.getElementById('confirm-dialog').classList.add('show');
 }
 function closeConfirm() { document.getElementById('confirm-dialog').classList.remove('show'); S.confirmCb = null; }
+
+// ═══════════════════════════════════════════════════════════
+// SKU 自动填图 + 图片预览
+// ═══════════════════════════════════════════════════════════
+document.getElementById('o-sku').addEventListener('input', function() {
+  const name = this.value.trim();
+  if (!name) return;
+  // 在 SKU 列表中按名称匹配
+  const match = S.skus.find(s => (s['产品名称']||s.name||'') === name);
+  if (match) {
+    const imgUrl = match['产品图片(URL)']||match.image||'';
+    if (imgUrl) {
+      document.getElementById('o-image').value = imgUrl;
+      showImgPreview(imgUrl);
+    }
+  }
+});
+
+document.getElementById('o-image').addEventListener('input', function() {
+  showImgPreview(this.value);
+});
+
+function showImgPreview(url) {
+  const preview = document.getElementById('o-image-preview');
+  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    preview.src = url;
+    preview.style.display = 'block';
+    preview.onerror = () => { preview.style.display = 'none'; };
+  } else {
+    preview.style.display = 'none';
+  }
+}
 
 // ═══════════════════════════════════════════════════════════
 // Init
